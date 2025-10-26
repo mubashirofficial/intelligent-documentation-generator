@@ -24,9 +24,8 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectLanguage, setNewProjectLanguage] = useState<
-    "typescript" | "javascript" | "python"
-  >("typescript");
+  const [newProjectLanguage, setNewProjectLanguage] = useState("typescript");
+  const [selectedLanguage, setSelectedLanguage] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "editor" | "docs" | "chat" | "search"
@@ -162,6 +161,7 @@ export default function DashboardPage() {
       setCurrentProject(newProject);
       setNewProjectName("");
       setNewProjectLanguage("typescript");
+      setSelectedLanguage("");
       setShowCreateForm(false);
       toast.success("Project created!");
     } catch (error) {
@@ -252,65 +252,65 @@ export default function DashboardPage() {
     }
   };
 
-  
-const extractExamplesFromDocs = (docs: any, functionName: string) => {
-  if (!docs?.data?.documentation) return null;
-  
-  for (const [fileName, items] of Object.entries(docs.data.documentation)) {
-    if (Array.isArray(items)) {
-      for (const doc of items) {
-        if (doc.name === functionName && doc.summary) {
-          // Extract examples from the summary
-          const exampleMatch = doc.summary.match(/Examples:([\s\S]*?)(?=Notes:|$)/);
-          if (exampleMatch) {
-            return exampleMatch[1].trim();
+
+  const extractExamplesFromDocs = (docs: any, functionName: string) => {
+    if (!docs?.data?.documentation) return null;
+
+    for (const [fileName, items] of Object.entries(docs.data.documentation)) {
+      if (Array.isArray(items)) {
+        for (const doc of items) {
+          if (doc.name === functionName && doc.summary) {
+            // Extract examples from the summary
+            const exampleMatch = doc.summary.match(/Examples:([\s\S]*?)(?=Notes:|$)/);
+            if (exampleMatch) {
+              return exampleMatch[1].trim();
+            }
           }
         }
       }
     }
-  }
-  return null;
-};
-
-// Then use it in handleSendMessage
-const handleSendMessage = async () => {
-  if (!chatInput.trim() || !currentProject) return;
-  const userMsg: Message = {
-    id: Date.now().toString(),
-    role: 'user',
-    content: chatInput,
-    timestamp: new Date(),
+    return null;
   };
-  setMessages([...messages, userMsg]);
-  setChatInput('');
-  setIsThinking(true);
-  try {
-    let finalQuestion = chatInput;
-    
-    // If asking about a specific function, try to include examples
-    const functionMatch = chatInput.match(/is_prime|is_fibonacci|(\w+)/i);
-    if (functionMatch) {
-      const docsData = await apiService.getDocumentation(currentProject._id);
-      const examples = extractExamplesFromDocs(docsData, functionMatch[0]);
-      if (examples) {
-        finalQuestion = `${chatInput}\n\nPlease include specific examples with actual numbers like:\n${examples}`;
-      }
-    }
-    
-    const response = await apiService.askQuestion(currentProject._id, finalQuestion);
-    const aiMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: response.data?.answer || response.answer || 'No response',
+
+  // Then use it in handleSendMessage
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !currentProject) return;
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: chatInput,
       timestamp: new Date(),
     };
-    setMessages((prev) => [...prev, aiMsg]);
-  } catch (error) {
-    toast.error('Failed to get answer');
-  } finally {
-    setIsThinking(false);
-  }
-};
+    setMessages([...messages, userMsg]);
+    setChatInput('');
+    setIsThinking(true);
+    try {
+      let finalQuestion = chatInput;
+
+      // If asking about a specific function, try to include examples
+      const functionMatch = chatInput.match(/is_prime|is_fibonacci|(\w+)/i);
+      if (functionMatch) {
+        const docsData = await apiService.getDocumentation(currentProject._id);
+        const examples = extractExamplesFromDocs(docsData, functionMatch[0]);
+        if (examples) {
+          finalQuestion = `${chatInput}\n\nPlease include specific examples with actual numbers like:\n${examples}`;
+        }
+      }
+
+      const response = await apiService.askQuestion(currentProject._id, finalQuestion);
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: response.data?.answer || response.answer || 'No response',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch (error) {
+      toast.error('Failed to get answer');
+    } finally {
+      setIsThinking(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim() || !currentProject) return;
@@ -373,7 +373,7 @@ const handleSendMessage = async () => {
         fileData as DocumentationItem[],
         currentProject?.language || 'typescript'
       );
-      
+
       setShowDownloadDropdown(false);
       setSelectedDownloadFile('');
     } catch (error) {
@@ -449,18 +449,31 @@ const handleSendMessage = async () => {
                 className="w-full px-3 py-2 bg-dark-elevated border border-dark-border rounded text-white text-sm"
               />
               <select
-                value={newProjectLanguage}
-                onChange={(e) =>
-                  setNewProjectLanguage(
-                    e.target.value as "typescript" | "javascript" | "python"
-                  )
-                }
+                value={selectedLanguage == "other" ? selectedLanguage : newProjectLanguage}
+                onChange={(e) => {
+                  setNewProjectLanguage(e.target.value)
+                  setSelectedLanguage(e.target.value)
+                }}
                 className="w-full px-3 py-2 bg-dark-elevated border border-dark-border rounded text-white text-sm"
               >
                 <option value="typescript">TypeScript</option>
                 <option value="javascript">JavaScript</option>
                 <option value="python">Python</option>
+                <option value="other">Other</option>
               </select>
+
+              {/* Show text input when "Other" is selected */}
+              {selectedLanguage === "other" && (
+                <input
+                  type="text"
+                  value={newProjectLanguage == "other" ? '' : newProjectLanguage}
+                  onChange={(e) => setNewProjectLanguage(e.target.value)}
+                  placeholder="Enter language name"
+                  required
+                  className="w-full px-3 py-2 bg-dark-elevated border border-dark-border rounded text-white text-sm"
+                />
+              )}
+
               <button
                 type="submit"
                 className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
@@ -475,11 +488,10 @@ const handleSendMessage = async () => {
           {projects.map((project) => (
             <div
               key={project._id}
-              className={`relative group w-full p-3 rounded-lg transition-all ${
-                currentProject?._id === project._id
+              className={`relative group w-full p-3 rounded-lg transition-all ${currentProject?._id === project._id
                   ? "bg-blue-600 text-white"
                   : "bg-dark-elevated hover:bg-dark-border text-gray-300"
-              }`}
+                }`}
             >
               <button
                 onClick={() => setCurrentProject(project)}
@@ -541,11 +553,10 @@ const handleSendMessage = async () => {
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
-                    className={`px-4 py-2 rounded-lg capitalize ${
-                      activeTab === tab
+                    className={`px-4 py-2 rounded-lg capitalize ${activeTab === tab
                         ? "bg-blue-600 text-white"
                         : "text-gray-400 hover:text-white"
-                    }`}
+                      }`}
                   >
                     {tab}
                   </button>
@@ -578,9 +589,8 @@ const handleSendMessage = async () => {
 
                     {/* File Upload Area */}
                     <div
-                      className={`drop-zone p-8 rounded-lg mb-4 text-center ${
-                        dragOver ? "drag-over" : ""
-                      }`}
+                      className={`drop-zone p-8 rounded-lg mb-4 text-center ${dragOver ? "drag-over" : ""
+                        }`}
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
@@ -651,7 +661,7 @@ const handleSendMessage = async () => {
                           </svg>
                           Download Documentation
                         </button>
-                        
+
                         {showDownloadDropdown && (
                           <div className="absolute right-0 top-full mt-2 w-64 bg-dark-surface border border-dark-border rounded-lg shadow-lg z-10">
                             <div className="p-3">
@@ -808,11 +818,10 @@ const handleSendMessage = async () => {
                         {messages.map((msg) => (
                           <div
                             key={msg.id}
-                            className={`p-4 rounded-lg ${
-                              msg.role === "user"
+                            className={`p-4 rounded-lg ${msg.role === "user"
                                 ? "bg-blue-600 text-white ml-12"
                                 : "bg-dark-elevated text-gray-200 mr-12"
-                            }`}
+                              }`}
                           >
                             <div className="text-xs font-medium mb-2 opacity-70">
                               {msg.role === "user" ? "You" : "AI"}

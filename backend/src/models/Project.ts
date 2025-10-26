@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IProject extends Document {
   name: string;
-  language: 'typescript' | 'javascript' | 'python';
+  language: string;
   description?: string;
   status: 'pending' | 'analyzing' | 'completed' | 'failed';
   fileCount: number;
@@ -15,7 +15,6 @@ const ProjectSchema: Schema = new Schema(
     language: {
       type: String,
       required: true,
-      enum: ['typescript', 'javascript', 'python'],
       default: 'typescript',
     },
     description: { type: String, trim: true },

@@ -63,7 +63,6 @@ router.get('/:id', projectController.getOne);
  *                 type: string
  *               language:
  *                 type: string
- *                 enum: [typescript, javascript, python]
  *               description:
  *                 type: string
  *     responses:

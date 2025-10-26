@@ -1,7 +1,7 @@
 export interface Project {
   _id: string;
   name: string;
-  language: 'typescript' | 'javascript' | 'python';
+  language: string;
   description?: string;
   status: 'pending' | 'analyzing' | 'completed' | 'failed';
   fileCount: number;
