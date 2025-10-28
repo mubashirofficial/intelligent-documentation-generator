@@ -252,26 +252,6 @@ export default function DashboardPage() {
     }
   };
 
-
-  const extractExamplesFromDocs = (docs: any, functionName: string) => {
-    if (!docs?.data?.documentation) return null;
-
-    for (const [fileName, items] of Object.entries(docs.data.documentation)) {
-      if (Array.isArray(items)) {
-        for (const doc of items) {
-          if (doc.name === functionName && doc.summary) {
-            // Extract examples from the summary
-            const exampleMatch = doc.summary.match(/Examples:([\s\S]*?)(?=Notes:|$)/);
-            if (exampleMatch) {
-              return exampleMatch[1].trim();
-            }
-          }
-        }
-      }
-    }
-    return null;
-  };
-
   // Then use it in handleSendMessage
   const handleSendMessage = async () => {
     if (!chatInput.trim() || !currentProject) return;
@@ -286,16 +266,6 @@ export default function DashboardPage() {
     setIsThinking(true);
     try {
       let finalQuestion = chatInput;
-
-      // If asking about a specific function, try to include examples
-      const functionMatch = chatInput.match(/is_prime|is_fibonacci|(\w+)/i);
-      if (functionMatch) {
-        const docsData = await apiService.getDocumentation(currentProject._id);
-        const examples = extractExamplesFromDocs(docsData, functionMatch[0]);
-        if (examples) {
-          finalQuestion = `${chatInput}\n\nPlease include specific examples with actual numbers like:\n${examples}`;
-        }
-      }
 
       const response = await apiService.askQuestion(currentProject._id, finalQuestion);
       const aiMsg: Message = {
