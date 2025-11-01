@@ -8,6 +8,7 @@ import { Project, Documentation, Message } from "@/types";
 import toast from "react-hot-toast";
 import { copyToClipboard, generateAndDownloadDocumentation, DocumentationItem } from "@/utils";
 import ProgressModal from "@/components/ProgressModal";
+import TechnicalDocumentationViewer from "@/components/TechnicalDocumentationViewer";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [code, setCode] = useState("");
   const [fileName, setFileName] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [docs, setDocs] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -170,16 +172,32 @@ export default function DashboardPage() {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setCode(event.target?.result as string);
-      };
-      reader.readAsText(file);
-      toast.success(`File selected: ${file.name}`);
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      if (files.length === 1) {
+        // Single file - show in editor
+        const file = files[0];
+        setSelectedFile(file);
+        setFileName(file.name);
+        setSelectedFiles([file]);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setCode(event.target?.result as string);
+        };
+        reader.readAsText(file);
+        toast.success(`File selected: ${file.name}`);
+      } else {
+        // Multiple files
+        setSelectedFiles(files);
+        setSelectedFile(files[0]); // Set first file for preview
+        setFileName(files[0].name);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setCode(event.target?.result as string);
+        };
+        reader.readAsText(files[0]);
+        toast.success(`${files.length} files selected`);
+      }
     }
   };
 
@@ -195,23 +213,37 @@ export default function DashboardPage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      setSelectedFile(file);
-      setFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setCode(event.target?.result as string);
-      };
-      reader.readAsText(file);
-      toast.success(`File dropped: ${file.name}`);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      if (files.length === 1) {
+        const file = files[0];
+        setSelectedFile(file);
+        setFileName(file.name);
+        setSelectedFiles([file]);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setCode(event.target?.result as string);
+        };
+        reader.readAsText(file);
+        toast.success(`File dropped: ${file.name}`);
+      } else {
+        setSelectedFiles(files);
+        setSelectedFile(files[0]);
+        setFileName(files[0].name);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setCode(event.target?.result as string);
+        };
+        reader.readAsText(files[0]);
+        toast.success(`${files.length} files dropped`);
+      }
     }
   };
 
   const handleAnalyze = async () => {
     if (!currentProject) return toast.error("Select a project first");
-    if (!code.trim() && !selectedFile)
-      return toast.error("Enter code or upload file");
+    if (!code.trim() && selectedFiles.length === 0)
+      return toast.error("Enter code or upload file(s)");
 
     // Generate session ID for progress tracking
     const sessionId = Date.now().toString();
@@ -222,12 +254,31 @@ export default function DashboardPage() {
     // Fire-and-forget API call - don't wait for response
     // The progress modal will handle completion via SSE stream
     try {
-      if (selectedFile) {
-        //await apiService.analyzeFile(currentProject._id, selectedFile);
-        apiService.analyzeCode(currentProject._id, code, fileName, sessionId).catch(error => {
-          console.log('Analysis API error:', error);
-          // Don't show error here - let SSE stream handle it
+      if (selectedFiles.length > 0) {
+        // Analyze multiple files
+        const filePromises = selectedFiles.map(async (file) => {
+          const fileContent = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsText(file);
+          });
+          
+          return apiService.analyzeCode(
+            currentProject._id,
+            fileContent,
+            file.name,
+            sessionId
+          ).catch(error => {
+            console.log(`Analysis API error for ${file.name}:`, error);
+            return null;
+          });
         });
+
+        // Process files sequentially to avoid overwhelming the server
+        for (const promise of filePromises) {
+          await promise;
+        }
       } else {
         apiService.analyzeCode(currentProject._id, code, fileName, sessionId).catch(error => {
           console.log('Analysis API error:', error);
@@ -373,6 +424,7 @@ export default function DashboardPage() {
   const handleUploadNewFile = () => {
     // Reset file selection
     setSelectedFile(null);
+    setSelectedFiles([]);
     setFileName('');
     setCode('');
     // Stay on editor tab
@@ -570,18 +622,28 @@ export default function DashboardPage() {
                         Drag & drop file here or
                       </p>
                       <label className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded cursor-pointer inline-block">
-                        Choose File
+                        Choose File(s)
                         <input
                           type="file"
-                          accept=".ts,.tsx,.js,.jsx,.py"
+                          accept=".ts,.tsx,.js,.jsx,.py,.html,.css,.cs,.json,.java,.cpp,.cxx,.cc,.c,.rb,.go,.rs,.php,.swift,.kt,.kts,.sql,.xml,.yaml,.yml,.sh,.bash,.ps1,.r,.scala,.clj,.hs"
+                          multiple
                           onChange={handleFileSelect}
                           className="hidden"
                         />
                       </label>
-                      {selectedFile && (
-                        <p className="text-green-400 mt-2 text-sm">
-                          ✓ {selectedFile.name}
-                        </p>
+                      {selectedFiles.length > 0 && (
+                        <div className="mt-3 space-y-1">
+                          <p className="text-green-400 text-sm font-medium">
+                            {selectedFiles.length} file(s) selected:
+                          </p>
+                          <div className="max-h-32 overflow-y-auto space-y-1">
+                            {selectedFiles.map((file, idx) => (
+                              <p key={idx} className="text-green-300 text-xs ml-2">
+                                • {file.name} ({(file.size / 1024).toFixed(2)} KB)
+                              </p>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
 
@@ -606,7 +668,7 @@ export default function DashboardPage() {
                     <textarea
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
-                      placeholder="Upload your TypeScript/JavaScript/Python file here..."
+                      placeholder="Upload your file here..."
                       readOnly
                       className="w-full h-96 p-4 bg-dark-bg border border-dark-border rounded text-white font-mono text-sm resize-none"
                     />
@@ -711,25 +773,41 @@ export default function DashboardPage() {
 
                                     {/* Summary */}
                                     {doc.summary && (
-                                      <div className="mb-4 text-gray-300 text-sm leading-relaxed whitespace-pre-line">
-                                        {doc.summary
-                                          .replace(/```[\s\S]*?\n|```/g, "") // remove code blocks
-                                          .replace(/\*\*/g, "") // remove bold
-                                          .replace(/\*/g, "") // remove asterisks
-                                          .replace(
-                                            /\([^)]*[a-zA-Z][^)]*\)/g,
-                                            ""
-                                          ) // remove type annotations like (int, float)
-                                          .replace(
-                                            /@param|@returns|@example/g,
-                                            ""
-                                          ) // remove JSDoc tags
-                                          .replace(/^##\s?/gm, "")
-                                          .replace(/^#\s?/gm, "")
-                                          .trim()
-                                          .split("\n")
-                                          .map((line: string) => line.trim())
-                                          .join("\n")}
+                                      <div className="mb-4">
+                                        {/* Check if this is technical documentation format - flexible detection */}
+                                        {(doc.summary.includes('## 1. Technical Documentation') || 
+                                         doc.summary.includes('## 2. Code Review Report') ||
+                                         doc.summary.includes('## Technical Documentation') ||
+                                         doc.summary.includes('## Code Review Report') ||
+                                         (doc.summary.includes('Technical Documentation') && doc.summary.includes('Code Review Report'))) ? (
+                                          <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                                            <TechnicalDocumentationViewer 
+                                              documentation={doc.summary}
+                                              fileName={doc.name}
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">
+                                            {doc.summary
+                                              .replace(/```[\s\S]*?\n|```/g, "") // remove code blocks
+                                              .replace(/\*\*/g, "") // remove bold
+                                              .replace(/\*/g, "") // remove asterisks
+                                              .replace(
+                                                /\([^)]*[a-zA-Z][^)]*\)/g,
+                                                ""
+                                              ) // remove type annotations like (int, float)
+                                              .replace(
+                                                /@param|@returns|@example/g,
+                                                ""
+                                              ) // remove JSDoc tags
+                                              .replace(/^##\s?/gm, "")
+                                              .replace(/^#\s?/gm, "")
+                                              .trim()
+                                              .split("\n")
+                                              .map((line: string) => line.trim())
+                                              .join("\n")}
+                                          </div>
+                                        )}
                                       </div>
                                     )}
 
