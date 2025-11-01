@@ -7,6 +7,48 @@ import Project from '../models/Project';
 const progressStore = new Map<string, { progress: number; status: string; message: string }>();
 
 export class AnalysisController {
+  // Detect language from file extension
+  private static detectLanguageFromExtension(fileName: string): string {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    
+    const languageMap: { [key: string]: string } = {
+      'ts': 'typescript',
+      'tsx': 'typescript',
+      'js': 'javascript',
+      'jsx': 'javascript',
+      'py': 'python',
+      'html': 'html',
+      'css': 'css',
+      'cs': 'csharp',
+      'json': 'json',
+      'java': 'java',
+      'cpp': 'cpp',
+      'cxx': 'cpp',
+      'cc': 'cpp',
+      'c': 'c',
+      'rb': 'ruby',
+      'go': 'go',
+      'rs': 'rust',
+      'php': 'php',
+      'swift': 'swift',
+      'kt': 'kotlin',
+      'kts': 'kotlin',
+      'sql': 'sql',
+      'xml': 'xml',
+      'yaml': 'yaml',
+      'yml': 'yaml',
+      'sh': 'bash',
+      'bash': 'bash',
+      'ps1': 'powershell',
+      'r': 'r',
+      'scala': 'scala',
+      'clj': 'clojure',
+      'hs': 'haskell',
+    };
+    
+    return languageMap[extension || ''] || 'javascript'; // Default to javascript if extension not found
+  }
+
   // Progress streaming endpoint
   async getProgress(req: Request, res: Response) {
     const { sessionId } = req.params;
@@ -62,8 +104,7 @@ export class AnalysisController {
       progressStore.set(sessionId, { progress: 10, status: 'parsing', message: 'Analyzing code structure...' });
 
       // Detect language from file extension
-      const language = fileName.split('.').pop()?.toLowerCase() === 'py' ? 'python' : 
-                     fileName.split('.').pop()?.toLowerCase() === 'ts' || fileName.split('.').pop()?.toLowerCase() === 'tsx' ? 'typescript' : 'javascript';
+      const language = AnalysisController.detectLanguageFromExtension(fileName);
       
       console.log('Language detected:', language);
       
